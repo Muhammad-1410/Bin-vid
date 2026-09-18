@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "binvid"
+version = "0.1.0"
+description = "Convert video into ASCII-style binary art made of 0 and 1 digits."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "opencv-python",
+    "numpy",
+    "Pillow",
+    "tqdm",
+    "gradio",
+]
+
+[project.scripts]
+binvid = "binvid.cli:main"
+binvid-app = "binvid.app:main"
+
