@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import multiprocessing as mp
 import os
 import subprocess
 import tempfile
@@ -1103,15 +1104,24 @@ def build_app() -> gr.Blocks:
 
 def main() -> None:
     """CLI launcher for the binvid Gradio web interface."""
+    mp.freeze_support()
     parser = argparse.ArgumentParser(description="binvid — Interactive Gradio Web Interface")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host address to bind (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=7860, help="Port number to bind (default: 7860)")
     parser.add_argument("--share", action="store_true", help="Create a public Gradio share link")
+    parser.add_argument("--inbrowser", action="store_true", default=False, help="Automatically open browser on launch")
     args = parser.parse_args()
 
     demo = build_app()
-    demo.launch(server_name=args.host, server_port=args.port, share=args.share, css=CUSTOM_CSS)
+    demo.launch(
+        server_name=args.host,
+        server_port=args.port,
+        share=args.share,
+        inbrowser=args.inbrowser,
+        css=CUSTOM_CSS,
+    )
 
 
 if __name__ == "__main__":
+    mp.freeze_support()
     main()

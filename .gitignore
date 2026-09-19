@@ -64,3 +64,8 @@ cover/
 *.webm
 output/
 temp/
+
+# PyInstaller & Bundled Binaries
+bin/*.exe
+binvid/bin/*.exe
+*.spec

@@ -40,17 +40,34 @@ Run the launcher script:
 ```bash
 python run_app.py
 ```
+Or launch as a module:
+```bash
+python -m binvid.app
+```
 Open your browser at **`http://127.0.0.1:7860`**.
 
 > **Options**:
+> - Auto-open browser: `python run_app.py --inbrowser`
 > - Specify port: `python run_app.py --port 8080`
 > - Bind network: `python run_app.py --host 0.0.0.0`
 > - Public shareable link: `python run_app.py --share`
 
-### 4. Or Run via Command Line (CLI)
+### 4. Or Run via Standalone Executable (No Python Required)
+If you built the standalone distribution (see [Building Standalone Executable](#building--running-the-standalone-executable)):
+```powershell
+# From the project folder:
+.\dist\binvid\binvid.exe
+
+# Or with options:
+.\dist\binvid\binvid.exe --inbrowser --port 7860
+```
+
+### 5. Or Run via Command Line (CLI)
 ```bash
 # Basic conversion (outputs <input>_binary.mp4 in full color)
 binvid input.mp4
+# Or with python:
+python -m binvid.cli input.mp4
 
 # Green monochrome Matrix rain:
 binvid input.mp4 -o matrix.mp4 --mode mono --digit-mode scroll --scanlines --cols 220
@@ -537,6 +554,77 @@ binvid input.mp4 -o retro.mp4 --mode color --gamma 0.6 --contrast-boost --scanli
   ```text
   Error: Source video file not found: missing_file.mp4
   ```
+
+---
+
+## Building & Running the Standalone Executable
+
+`binvid` can be compiled into a standalone, portable Windows application using **PyInstaller**. This bundles Python, OpenCV, Gradio's web frontend, `ffmpeg.exe`, and the `consola.ttf` font into a single folder or single executable so it runs on any Windows machine without requiring Python or FFmpeg to be installed!
+
+### 1. Automated Build (PowerShell)
+
+We provide an automated build script [`build_installer.ps1`](build_installer.ps1) that automatically verifies and bundles `ffmpeg.exe` and `consola.ttf`, collects all Gradio frontend templates, and builds the distribution:
+
+```powershell
+# Recommended: Builds fast-launching standalone folder in dist\binvid\
+powershell -ExecutionPolicy Bypass -File .\build_installer.ps1 -Mode onedir
+
+# Optional: Builds a single file dist\binvid.exe (takes longer to unpack on startup)
+powershell -ExecutionPolicy Bypass -File .\build_installer.ps1 -Mode onefile
+
+# Clean previous build artifacts and rebuild:
+powershell -ExecutionPolicy Bypass -File .\build_installer.ps1 -Mode onedir -Clean
+```
+
+### 2. Manual PyInstaller Command
+
+If you prefer building directly with `pyinstaller`:
+
+```powershell
+# 1. Install PyInstaller in your venv
+pip install pyinstaller
+
+# 2. Ensure bin\ffmpeg.exe and fonts\consola.ttf are present
+New-Item -ItemType Directory -Force -Path "bin", "fonts"
+Copy-Item (Get-Command ffmpeg).Source -Destination "bin\ffmpeg.exe"
+Copy-Item "C:\Windows\Fonts\consola.ttf" -Destination "fonts\consola.ttf"
+
+# 3. Build with PyInstaller (--onedir recommended)
+pyinstaller --onedir --name binvid `
+  --noconfirm `
+  --add-data "bin\ffmpeg.exe;bin" `
+  --add-data "fonts\consola.ttf;fonts" `
+  --collect-all gradio `
+  --collect-all gradio_client `
+  --collect-all safehttpx `
+  --collect-all groovy `
+  --copy-metadata tqdm `
+  --copy-metadata filelock `
+  --copy-metadata packaging `
+  --copy-metadata huggingface_hub `
+  binvid\app.py
+```
+
+### 3. Running the Built Application
+
+Navigate into the distribution folder and launch `binvid.exe`:
+
+```powershell
+# Launch the Gradio web UI:
+.\dist\binvid\binvid.exe
+
+# Launch and automatically open the default web browser:
+.\dist\binvid\binvid.exe --inbrowser
+
+# Run on a custom port or share over the network:
+.\dist\binvid\binvid.exe --port 7860 --host 0.0.0.0
+```
+
+> **Why `--onedir` is recommended over `--onefile`**:
+> - OpenCV + Gradio + PyTorch/Pillow dependencies are large (>300MB).
+> - `--onefile` decompresses this entire bundle into your `%TEMP%` directory every time you launch, causing an 8-15 second delay before anything appears.
+> - `--onedir` runs instantly from the folder, and is far less likely to be flagged by Windows Defender or antivirus heuristics.
+> - To distribute to another machine, simply zip the `dist\binvid\` folder and send it!
 
 ---
 

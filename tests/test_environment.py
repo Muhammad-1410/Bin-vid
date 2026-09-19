@@ -47,6 +47,36 @@ class TestEnvironment(unittest.TestCase):
         self.assertIn("No monospace font found", str(ctx.exception))
         self.assertIn("Candidate paths searched:", str(ctx.exception))
 
+    def test_find_ffmpeg_frozen(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bin_dir = Path(tmpdir) / "bin"
+            bin_dir.mkdir(parents=True)
+            dummy_ffmpeg = bin_dir / "ffmpeg.exe"
+            dummy_ffmpeg.write_text("dummy")
+
+            with patch.object(sys, "frozen", True, create=True), \
+                 patch.object(sys, "_MEIPASS", tmpdir, create=True):
+                path = find_ffmpeg()
+                self.assertEqual(path, str(dummy_ffmpeg.resolve()))
+
+    def test_find_monospace_font_frozen(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fonts_dir = Path(tmpdir) / "fonts"
+            fonts_dir.mkdir(parents=True)
+            dummy_font = fonts_dir / "consola.ttf"
+            dummy_font.write_text("dummy font")
+
+            with patch.object(sys, "frozen", True, create=True), \
+                 patch.object(sys, "_MEIPASS", tmpdir, create=True):
+                path = find_monospace_font()
+                self.assertEqual(path, str(dummy_font.resolve()))
+
     def test_environment_main_output(self):
         # Verify that main() runs and prints verification headers
         captured = io.StringIO()
@@ -60,3 +90,4 @@ class TestEnvironment(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

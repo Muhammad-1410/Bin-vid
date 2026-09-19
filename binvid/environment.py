@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import shutil
 import sys
 
@@ -8,9 +9,22 @@ import sys
 def find_ffmpeg() -> str:
     """Locate the ffmpeg binary on the system.
 
-    Searches PATH via shutil.which, falling back to imageio_ffmpeg if installed.
+    Checks bundled directories if running under PyInstaller (sys.frozen),
+    searches PATH via shutil.which, falling back to imageio_ffmpeg if installed.
     Raises RuntimeError with installation instructions if neither works.
     """
+    if getattr(sys, "frozen", False):
+        base_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+        candidates = [
+            base_dir / "bin" / "ffmpeg.exe",
+            base_dir / "ffmpeg.exe",
+            Path(sys.executable).parent / "bin" / "ffmpeg.exe",
+            Path(sys.executable).parent / "ffmpeg.exe",
+        ]
+        for candidate in candidates:
+            if candidate.is_file():
+                return str(candidate.resolve())
+
     ffmpeg_path = shutil.which("ffmpeg")
     if ffmpeg_path:
         return os.path.abspath(ffmpeg_path)
@@ -41,6 +55,18 @@ def find_monospace_font() -> str:
 
     Raises RuntimeError listing all candidate paths that were checked if none found.
     """
+    if getattr(sys, "frozen", False):
+        base_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+        candidates_frozen = [
+            base_dir / "fonts" / "consola.ttf",
+            base_dir / "consola.ttf",
+            Path(sys.executable).parent / "fonts" / "consola.ttf",
+            Path(sys.executable).parent / "consola.ttf",
+        ]
+        for font_candidate in candidates_frozen:
+            if font_candidate.is_file():
+                return str(font_candidate.resolve())
+
     candidates: list[str] = []
 
     if sys.platform.startswith("win"):
