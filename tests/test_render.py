@@ -2,16 +2,13 @@ import os
 import tempfile
 import unittest
 from unittest.mock import patch
-
 import cv2
 import numpy as np
-
 from binvid.digits import DigitField
 from binvid.environment import find_monospace_font
 from binvid.geometry import GridSpec, compute_grid
 from binvid.glyphs import build_atlas
 from binvid.render import main, render_frame
-
 
 class TestRender(unittest.TestCase):
     font_path: str
@@ -27,112 +24,76 @@ class TestRender(unittest.TestCase):
         cls.atlas = build_atlas(cls.font_path, font_size=12, cell_w=cls.grid.cell_w, cell_h=cls.grid.cell_h)
         df = DigitField(rows=cls.grid.rows, cols=cls.grid.cols, seed=42, refresh=0)
         cls.digits = df.for_frame(0)
-
-        # Create a synthetic 320x240 BGR frame with distinct quadrants
         cls.test_frame = np.zeros((240, 320, 3), dtype=np.uint8)
-        # Top-left bright white square
         cls.test_frame[:120, :160] = 255
-        # Bottom-right red square
         cls.test_frame[120:, 160:] = (0, 0, 255)
 
     def test_render_color_mode(self):
-        out = render_frame(self.test_frame, self.grid, self.atlas, self.digits, mode="color")
+        out = render_frame(self.test_frame, self.grid, self.atlas, self.digits, mode='color')
         self.assertEqual(out.shape, (self.grid.out_h, self.grid.out_w, 3))
         self.assertEqual(out.dtype, np.uint8)
-
-        # Background pixels inside a cell must be black (0)
-        cell_0 = out[: self.grid.cell_h, : self.grid.cell_w]
+        cell_0 = out[:self.grid.cell_h, :self.grid.cell_w]
         cell_glyph = self.atlas[self.digits[0, 0]]
         self.assertEqual(int(cell_0[cell_glyph == 0].max()), 0)
-        # Foreground pixels inside top-left white quadrant must be bright
         self.assertGreater(int(cell_0[cell_glyph > 0].max()), 100)
 
     def test_render_mono_mode(self):
-        tint = (0, 255, 70)  # BGR green tint
-        out = render_frame(self.test_frame, self.grid, self.atlas, self.digits, mode="mono", tint_color=tint)
+        tint = (0, 255, 70)
+        out = render_frame(self.test_frame, self.grid, self.atlas, self.digits, mode='mono', tint_color=tint)
         self.assertEqual(out.shape, (self.grid.out_h, self.grid.out_w, 3))
         self.assertEqual(out.dtype, np.uint8)
-
-        # In pure green-tinted mono, blue channel should be 0 because tint[0] == 0
         self.assertEqual(int(out[:, :, 0].max()), 0)
-        # Green channel should have strong presence
         self.assertGreater(int(out[:, :, 1].max()), 100)
 
     def test_render_flat_mode(self):
         tint = (0, 255, 70)
-        out = render_frame(
-            self.test_frame,
-            self.grid,
-            self.atlas,
-            self.digits,
-            mode="flat",
-            tint_color=tint,
-            threshold=128,
-        )
+        out = render_frame(self.test_frame, self.grid, self.atlas, self.digits, mode='flat', tint_color=tint, threshold=128)
         self.assertEqual(out.shape, (self.grid.out_h, self.grid.out_w, 3))
         self.assertEqual(out.dtype, np.uint8)
-
-        # Dark cells deep in the bottom-left quadrant must be completely black
-        bottom_left = out[12 * self.grid.cell_h :, : 15 * self.grid.cell_w]
+        bottom_left = out[12 * self.grid.cell_h:, :15 * self.grid.cell_w]
         self.assertEqual(int(bottom_left.max()), 0)
-
-        # Bright cells in the top-left quadrant should have full-brightness tint_color
-        cell_0 = out[: self.grid.cell_h, : self.grid.cell_w]
+        cell_0 = out[:self.grid.cell_h, :self.grid.cell_w]
         cell_glyph = self.atlas[self.digits[0, 0]]
         self.assertGreater(int(cell_0[cell_glyph > 0, 1].max()), 200)
 
     def test_invalid_parameters_raise(self):
         with self.assertRaises(ValueError):
-            render_frame(self.test_frame, self.grid, self.atlas, self.digits, mode="unknown_mode")
-
+            render_frame(self.test_frame, self.grid, self.atlas, self.digits, mode='unknown_mode')
         with self.assertRaises(ValueError):
             bad_digits = np.zeros((10, 10), dtype=np.uint8)
-            render_frame(self.test_frame, self.grid, self.atlas, bad_digits, mode="color")
-
+            render_frame(self.test_frame, self.grid, self.atlas, bad_digits, mode='color')
         with self.assertRaises(ValueError):
             bad_atlas = np.zeros((2, 5, 5), dtype=np.uint8)
-            render_frame(self.test_frame, self.grid, bad_atlas, self.digits, mode="color")
+            render_frame(self.test_frame, self.grid, bad_atlas, self.digits, mode='color')
 
     def test_render_invert(self):
-        # Invert: glyph stroke is dark, background is bright
         normal = render_frame(self.test_frame, self.grid, self.atlas, self.digits, invert=False)
         inverted = render_frame(self.test_frame, self.grid, self.atlas, self.digits, invert=True)
-
-        cell_0_norm = normal[: self.grid.cell_h, : self.grid.cell_w]
-        cell_0_inv = inverted[: self.grid.cell_h, : self.grid.cell_w]
+        cell_0_norm = normal[:self.grid.cell_h, :self.grid.cell_w]
+        cell_0_inv = inverted[:self.grid.cell_h, :self.grid.cell_w]
         cell_glyph = self.atlas[self.digits[0, 0]]
-
-        # Where glyph is stroke (255), inverted should be darker than normal
         stroke_mask = cell_glyph > 200
         if np.any(stroke_mask):
             self.assertGreater(cell_0_norm[stroke_mask].mean(), cell_0_inv[stroke_mask].mean())
 
     def test_render_bg_color(self):
-        # Background color (blue=100, green=0, red=0)
         bg = (100, 0, 0)
         out = render_frame(self.test_frame, self.grid, self.atlas, self.digits, bg_color=bg)
-        # Background areas (where glyph is 0) should take bg color
-        cell_0 = out[: self.grid.cell_h, : self.grid.cell_w]
+        cell_0 = out[:self.grid.cell_h, :self.grid.cell_w]
         cell_glyph = self.atlas[self.digits[0, 0]]
         bg_pixels = cell_0[cell_glyph == 0]
         self.assertAlmostEqual(int(bg_pixels[:, 0].mean()), 100, delta=5)
 
     def test_render_gamma(self):
-        # Dark test frame with gray=30
         dark_frame = np.full((240, 320, 3), 30, dtype=np.uint8)
         norm_out = render_frame(dark_frame, self.grid, self.atlas, self.digits, gamma=1.0)
         boost_out = render_frame(dark_frame, self.grid, self.atlas, self.digits, gamma=0.5)
-
-        # Gamma 0.5 should make dark cells noticeably brighter
         self.assertGreater(boost_out.mean(), norm_out.mean())
 
     def test_render_contrast_boost(self):
-        # Low contrast frame (values in 50-80 range)
         low_contrast = np.random.randint(50, 80, (240, 320, 3), dtype=np.uint8)
         normal = render_frame(low_contrast, self.grid, self.atlas, self.digits, contrast_boost=False)
         boosted = render_frame(low_contrast, self.grid, self.atlas, self.digits, contrast_boost=True)
-
-        # Dynamic range (max - min) should be larger with contrast boost
         norm_range = normal.max() - normal.min()
         boost_range = boosted.max() - boosted.min()
         self.assertGreaterEqual(boost_range, norm_range)
@@ -140,14 +101,11 @@ class TestRender(unittest.TestCase):
     def test_render_scanlines(self):
         normal = render_frame(self.test_frame, self.grid, self.atlas, self.digits, scanlines=False)
         scan = render_frame(self.test_frame, self.grid, self.atlas, self.digits, scanlines=True)
-
-        # Odd rows in scanlines must be darker than in normal render
         odd_rows_norm = normal[1::2, :].mean()
         odd_rows_scan = scan[1::2, :].mean()
         self.assertLess(odd_rows_scan, odd_rows_norm)
 
     def test_render_edge_emphasis(self):
-        # High contrast vertical edge in center of frame
         edge_frame = np.zeros((240, 320, 3), dtype=np.uint8)
         edge_frame[:, 160:] = 255
         out = render_frame(edge_frame, self.grid, self.atlas, self.digits, edge_emphasis=True)
@@ -155,33 +113,18 @@ class TestRender(unittest.TestCase):
 
     def test_main_cli(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            video_path = os.path.join(tmpdir, "sample.mp4")
-            preview_path = os.path.join(tmpdir, "frame_preview.png")
-
-            # Create 1-frame video
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            video_path = os.path.join(tmpdir, 'sample.mp4')
+            preview_path = os.path.join(tmpdir, 'frame_preview.png')
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             writer = cv2.VideoWriter(video_path, fourcc, 10.0, (160, 120))
             writer.write(np.full((120, 160, 3), 150, dtype=np.uint8))
             writer.release()
-
-            cli_args = [
-                "binvid.render",
-                video_path,
-                "--cols",
-                "30",
-                "--mode",
-                "color",
-                "--output",
-                preview_path,
-            ]
-            with patch("sys.argv", cli_args):
+            cli_args = ['binvid.render', video_path, '--cols', '30', '--mode', 'color', '--output', preview_path]
+            with patch('sys.argv', cli_args):
                 main()
-
             self.assertTrue(os.path.isfile(preview_path))
             saved_img = cv2.imread(preview_path)
             self.assertIsNotNone(saved_img)
             self.assertEqual(saved_img.shape[2], 3)
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
